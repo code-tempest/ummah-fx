@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Ummah FX"
+description = "A premium, accessible FX business-risk calculator for small and medium-sized businesses to quantify currency exposure, compare institutional and remittance-provider rates, test market scenarios, and understand the potential effect of hedging."
+version = "1.0.0"
+id = "artifacts/ummah-fx"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25152
+
+[services.development]
+run = "pnpm --filter @workspace/ummah-fx run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ummah-fx", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/ummah-fx/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25152"
+BASE_PATH = "/"

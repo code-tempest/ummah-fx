@@ -1,0 +1,332 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: fx
+    description: Foreign-exchange reference data
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /fx/history:
+    get:
+      operationId: getFxHistory
+      tags: [fx]
+      summary: Historical reference exchange rates
+      description: Returns recent daily reference rates from the European Central Bank via Frankfurter. Dates are historical, not forecasts.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 7
+            maximum: 90
+            default: 30
+      responses:
+        "200":
+          description: Historical reference rates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FxHistory"
+        "400":
+          description: Invalid currency pair or timescale
+        "502":
+          description: Reference data provider unavailable
+  /fx/comparison:
+    get:
+      operationId: getFxComparison
+      tags: [fx]
+      summary: Compare transfer providers
+      description: Returns corridor-specific provider estimates from Wise Comparison and an independent reference rate. Competitor values are estimates, not executable quotes.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{3}$"
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: number
+            exclusiveMinimum: 0
+            maximum: 100000000
+        - name: amountType
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [SEND, RECEIVE]
+            default: SEND
+        - name: sourceCountry
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{2}$"
+        - name: targetCountry
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{2}$"
+      responses:
+        "200":
+          description: Provider comparison and reference rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FxComparison"
+        "400":
+          description: Invalid corridor or amount
+        "502":
+          description: Comparison providers unavailable
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    FxHistoryPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        rate:
+          type: number
+      required: [date, rate]
+    FxHistory:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        source:
+          type: string
+        asOf:
+          type: string
+          format: date
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/FxHistoryPoint"
+      required: [from, to, source, asOf, points]
+    FxDataSource:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [DIRECT_API, THIRD_PARTY_ESTIMATE, FIRST_PARTY_DISCLOSURE, DERIVED, UNAVAILABLE]
+        label:
+          type: string
+        url:
+          type: ["string", "null"]
+        collectedAt:
+          type: ["string", "null"]
+          format: date-time
+        retrievedAt:
+          type: string
+          format: date-time
+      required: [kind, label, url, collectedAt, retrievedAt]
+    FxReferenceRate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [available, unavailable]
+        rate:
+          type: ["number", "null"]
+        asOf:
+          type: ["string", "null"]
+        source:
+          $ref: "#/components/schemas/FxDataSource"
+      required: [status, rate, asOf, source]
+    FxMoney:
+      type: object
+      properties:
+        amount:
+          type: number
+        currency:
+          type: string
+      required: [amount, currency]
+    FxDeliveryEstimate:
+      type: object
+      properties:
+        minHours:
+          type: ["number", "null"]
+        maxHours:
+          type: ["number", "null"]
+        display:
+          type: string
+        basis:
+          type: string
+      required: [minHours, maxHours, display, basis]
+    FxOnboardingRequirements:
+      type: object
+      properties:
+        accountRequired:
+          type: ["boolean", "null"]
+        onlineSignupAvailable:
+          type: ["boolean", "null"]
+        idRequired:
+          type: ["boolean", "null"]
+        proofOfAddressMayBeRequired:
+          type: ["boolean", "null"]
+        selfieMayBeRequired:
+          type: ["boolean", "null"]
+        sourceOfFundsMayBeRequired:
+          type: ["boolean", "null"]
+        businessDocumentsMayBeRequired:
+          type: ["boolean", "null"]
+        branchVisitMayBeRequired:
+          type: ["boolean", "null"]
+        notes:
+          type: array
+          items:
+            type: string
+      required:
+        - accountRequired
+        - onlineSignupAvailable
+        - idRequired
+        - proofOfAddressMayBeRequired
+        - selfieMayBeRequired
+        - sourceOfFundsMayBeRequired
+        - businessDocumentsMayBeRequired
+        - branchVisitMayBeRequired
+        - notes
+    FxProviderComparison:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [bank, moneyTransferProvider, travelMoney, unknown]
+        status:
+          type: string
+          enum: [available, unavailable]
+        confidence:
+          type: string
+          enum: [estimated, unavailable]
+        rate:
+          type: ["number", "null"]
+        markupPercent:
+          type: ["number", "null"]
+        providerFee:
+          anyOf:
+            - $ref: "#/components/schemas/FxMoney"
+            - type: "null"
+        knownTotalFee:
+          anyOf:
+            - $ref: "#/components/schemas/FxMoney"
+            - type: "null"
+        senderPays:
+          anyOf:
+            - $ref: "#/components/schemas/FxMoney"
+            - type: "null"
+        recipientGets:
+          anyOf:
+            - $ref: "#/components/schemas/FxMoney"
+            - type: "null"
+        additionalFeesNote:
+          type: string
+        delivery:
+          $ref: "#/components/schemas/FxDeliveryEstimate"
+        onboarding:
+          $ref: "#/components/schemas/FxOnboardingRequirements"
+        source:
+          $ref: "#/components/schemas/FxDataSource"
+        unavailableReason:
+          type: ["string", "null"]
+      required:
+        - id
+        - name
+        - type
+        - status
+        - confidence
+        - rate
+        - markupPercent
+        - providerFee
+        - knownTotalFee
+        - senderPays
+        - recipientGets
+        - additionalFeesNote
+        - delivery
+        - onboarding
+        - source
+        - unavailableReason
+    FxComparison:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        amount:
+          type: number
+        amountType:
+          type: string
+          enum: [SEND, RECEIVE]
+        sourceCountry:
+          type: string
+        targetCountry:
+          type: string
+        retrievedAt:
+          type: string
+          format: date-time
+        disclosure:
+          type: string
+        reference:
+          $ref: "#/components/schemas/FxReferenceRate"
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/FxProviderComparison"
+      required: [from, to, amount, amountType, sourceCountry, targetCountry, retrievedAt, disclosure, reference, providers]
+
